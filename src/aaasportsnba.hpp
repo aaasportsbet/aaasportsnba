@@ -24,7 +24,7 @@ public:
   struct round
   {
     uint64_t id;                 // unique id
-    name issuer;                 // issuer
+    account_name issuer;         // issuer
     uint64_t bet_end_time;       // after this time, can not bet
     uint64_t public_begin_time;  // before this time, can not input result
     uint64_t lottery_begin_time; // before this time, can not lottery
@@ -86,7 +86,7 @@ public:
   {
     uint64_t id;
     uint64_t round_id;
-    name player;
+    account_name player;
     int8_t bet_val;
     uint64_t share;
     uint64_t status = wait; // win or not
@@ -146,7 +146,7 @@ public:
 
   /// Bet a round
   // @abi action
-  void transfer(const account_name &sender, const name &receiver);
+  void transfer(const account_name &sender, const account_name &receiver);
 
 private:
   static const uint64_t nba_duration = 10800000000; // 3 * 60 * 60 * 1000 * 1000
