@@ -49,7 +49,7 @@ public:
                       // done, left is round fee.
 
     uint64_t primary_key() const { return id; }
-    uint64_t by_issuer() const { return issuer.value; }
+    uint64_t by_issuer() const { return issuer; }
     uint64_t by_status() const { return uint64_t(status); }
     uint64_t by_type() const { return uint64_t(type); }
     uint64_t by_hometeam() const { return uint64_t(hometeam); }
@@ -93,7 +93,7 @@ public:
 
     uint64_t primary_key() const { return id; }
     uint64_t by_round() const { return round_id; }
-    uint64_t by_player() const { return player.value; }
+    uint64_t by_player() const { return player; }
 
     EOSLIB_SERIALIZE(bet, (id)(round_id)(player)(bet_val)(share)(status))
   };
@@ -112,7 +112,7 @@ public:
 
   /// Stop bet round
   // @abi action
-  void stopbetround(const account_name &issuer, const uint64_t id);
+  void stopbet(const account_name &issuer, const uint64_t id);
 
   /// Publish round result
   // @abi action
@@ -121,24 +121,24 @@ public:
 
   /// Lottery round
   // @abi action
-  void lotteryround(const account_name &issuer, const uint64_t id);
+  void lotteryround(const uint64_t id);
 
   /// Forward award
   // @abi action
-  void forwardaward(const account_name &issuer, const uint64_t bet_id);
+  void forwardaward(const uint64_t bet_id);
 
   /// Cancel round
   // @abi action
-  void cancelround(const account_name &issuer, const uint64_t id);
+  void cancelround(const uint64_t id);
 
   /// Return bet
   // @abi action
-  void returnbet(const account_name &issuer, const uint64_t bet_id);
+  void returnbet(const uint64_t bet_id);
 
   /// Withdraw fee
   // @abi action
-  void withdrawfee(const account_name &issuer, const uint64_t id,
-                   const account_name &receiver);
+  void withdrawfee(const uint64_t id,
+                   const account_name &receiver = N(aaasportsbet));
 
   /// Delete round
   // @abi action
@@ -148,11 +148,15 @@ public:
   // @abi action
   void transfer(const account_name &sender, const account_name &receiver);
 
+  /// after player transfer token to this contract, bet round
+  void betround(const account_name &player, const uint64_t id,
+                const int8_t val, const asset &quant);
+
 private:
   static const uint64_t nba_duration = 10800000000; // 3 * 60 * 60 * 1000 * 1000
   static const uint64_t round_public_duration =
       7200000000; // 2 * 60 * 60 * 1000 * 1000
-  constexpr static const account_name nbaissuerp = N("nbaissuer");
+  constexpr static const permission_name nbaissuerp = N("nbaissuer");
   constexpr static const account_name activep = N("active");
 
   /// round type
