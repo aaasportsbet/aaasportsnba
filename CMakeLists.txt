@@ -1,6 +1,6 @@
 cmake_minimum_required( VERSION 3.5 )
 
-include( CTest )
+include( CTest aaasportslib )
 
 add_custom_target( abi ALL COMMAND python3 -c 'import eosfactory.core.teos as teos\; teos.ABI(\"${CMAKE_SOURCE_DIR}/src\")' )
 add_custom_target( wast ALL COMMAND python3 -c 'import eosfactory.core.teos as teos\; teos.WAST(\"${CMAKE_SOURCE_DIR}/src\")' )
