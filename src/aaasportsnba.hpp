@@ -1,10 +1,8 @@
 #include <eosiolib/asset.hpp>
 #include <eosiolib/eosio.hpp>
-// #include <eosiolib/print.hpp>
+#define DEBUG
 
-//#define DEBUG
-
-//#include "logger.hpp"
+#include "logger.hpp"
 
 using namespace eosio;
 using namespace std;
