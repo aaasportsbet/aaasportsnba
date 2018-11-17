@@ -1,17 +1,19 @@
+#include <aaasportslib/config.hpp>
+#include <aaasportslib/supervisor.hpp>
 #include <eosiolib/asset.hpp>
 #include <eosiolib/eosio.hpp>
-#define DEBUG
-
-#include "logger.hpp"
 
 using namespace eosio;
 using namespace std;
+using namespace aaasportslib;
 
 // aaasportsnba
-class aaasportsnba : public contract
+class aaasportsnba : public contract, public supervisorbase, public configbase
 {
 public:
-  aaasportsnba(account_name s) : contract(s), _rounds(s, s), _bets(s, s) {}
+  aaasportsnba(account_name n)
+      : contract(n), supervisorbase(n), configbase(n), _rounds(n, n),
+        _bets(n, n) {}
 
   /**
    * @brief Information releated to a round
@@ -145,13 +147,11 @@ public:
   void transfer(const account_name &sender, const account_name &receiver);
 
   /// after player transfer token to this contract, bet round
-  void betround(const account_name &player, const uint64_t id,
-                const int8_t val, const asset &quant);
+  void betround(const account_name &player, const uint64_t id, const int8_t val,
+                const asset &quant);
 
 private:
   static const uint64_t nba_duration = 10800000000; // 3 * 60 * 60 * 1000 * 1000
-  static const uint64_t round_public_duration =
-      7200000000; // 2 * 60 * 60 * 1000 * 1000
   constexpr static const permission_name nbaissuerp = N("nbaissuer");
   constexpr static const account_name activep = N("active");
 
@@ -228,4 +228,7 @@ private:
   /// bet round
   void betround(const name &player, const uint64_t id, const int8_t val,
                 const asset &quant);
+
+  /// get config
+  const configbase::config &getconfig();
 };
