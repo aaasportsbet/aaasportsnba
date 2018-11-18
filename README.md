@@ -1,2 +1,10 @@
 # aaasportsnba
 aaasportsnba
+
+## test net
+Account Name: fkt3b1aru1cg
+Owner Public Key: EOS53afYYtaBHaxtg85UxhbSn73gM2nvunpHYzHTbDmgBKcvEN8xu
+Active Public Key: EOS5GzSNRyBRiYstX4otm4Pyfzjrm8XrN8oxzR7vBwYV4FSeDgdzf
+
+Owner Private Key: 5JbjREBkXb2N47q45eWaS5TbmjgDeGA7a7hLYxnGuXCgMQGAUPh
+Active Private Key: 5KBozk5h6DR1arwRowvCPX3tn3Z4iXW7LhLdu3wC4bb1RmPb6Ls

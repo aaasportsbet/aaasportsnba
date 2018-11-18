@@ -1,7 +1,6 @@
 #include "aaasportsnba.hpp"
 #include <aaasportslib/aaasports.hpp>
 #include <aaasportslib/apply.hpp>
-#include <cmath>
 #include <eosiolib/asset.hpp>
 #include <eosiolib/contract.hpp>
 #include <eosiolib/eosio.hpp>
@@ -10,8 +9,10 @@
 #include <vector>
 #define DEBUG
 #include <aaasportslib/logger.hpp>
+#include <boost/algorithm/string.hpp>
 
 using namespace aaasportslib;
+using namespace boost::algorithm;
 using namespace eosio;
 using namespace std;
 
@@ -44,7 +45,7 @@ void aaasportsnba::createround(const account_name &issuer,
   checkasset(unit);
 
   // check fee
-  auto fee = getbetfee(unit, cfg.fee_percent);
+  auto fee = getbetfee(unit);
 
   // unit & fee must be the same token for now
   eosio_assert(unit.symbol == fee.symbol,
@@ -56,7 +57,7 @@ void aaasportsnba::createround(const account_name &issuer,
       public_begin_time + cfg.public_duration; // lottery begin time
 
   // create new round
-  _rounds.emplace(issuer, [&](auto &r) {
+  _rounds.emplace(get_self(), [&](auto &r) {
     r.id = _rounds.available_primary_key();
     r.issuer = issuer;
     r.bet_end_time = bet_end_time;
@@ -74,6 +75,7 @@ void aaasportsnba::createround(const account_name &issuer,
     r.total = asset(0, unit.symbol);
     r.token_left = r.total;
   });
+  logger_info("created new round");
 }
 
 /// stop bet round
@@ -86,7 +88,6 @@ void aaasportsnba::stopbet(const account_name &issuer, const uint64_t id) {
 
   // check bet end time
   uint64_t cur_time = current_time();
-  // print_f("current time: ", to_string(cur_time), "\n");
   eosio_assert(cur_time >= r.bet_end_time,
                "can not stop bet before bet_end_time");
 
@@ -94,7 +95,8 @@ void aaasportsnba::stopbet(const account_name &issuer, const uint64_t id) {
   eosio_assert(r.status == betting, "round not at betting status");
 
   // change status
-  _rounds.modify(r, issuer, [&](auto &nr) { nr.status = waitpub; });
+  _rounds.modify(_rounds.find(id), get_self(),
+                 [&](auto &nr) { nr.status = waitpub; });
 }
 
 /// public round result
@@ -105,6 +107,11 @@ void aaasportsnba::publicround(const account_name &issuer, const uint64_t id,
 
   // get round
   auto r = _rounds.get(id, "round not found");
+
+  // check public begin time
+  uint64_t cur_time = current_time();
+  eosio_assert(cur_time >= r.public_begin_time,
+               "can not public result before game end");
 
   // check result based on round type
   checknbaresult(result, round_type(r.type));
@@ -127,18 +134,13 @@ void aaasportsnba::publicround(const account_name &issuer, const uint64_t id,
       winner_shares += betitr->share;
       winner_bet += 1;
       iswin = true;
-
-      // print_f("bet id: ", betitr->id, "player: ", betitr->player,
-      //         ", win\n");
     } else {
       loser_shares += betitr->share;
       iswin = false;
-      // print_f("bet id: ", betitr->id, "player: ", betitr->player,
-      //         ", lose\n");
     }
 
     // update bet status
-    _bets.modify(_bets.get(betitr->id), issuer, [&](auto &nb) {
+    _bets.modify(_bets.get(betitr->id), get_self(), [&](auto &nb) {
       if (iswin) {
         nb.status = win;
       } else {
@@ -149,7 +151,7 @@ void aaasportsnba::publicround(const account_name &issuer, const uint64_t id,
 
   eosio_assert(r.shares == winner_shares + loser_shares, "shares not match");
   // update round
-  _rounds.modify(r, issuer, [&](auto &nr) {
+  _rounds.modify(_rounds.find(id), get_self(), [&](auto &nr) {
     nr.status = pubing;
     nr.result = result;
     nr.shares_win = winner_shares;
@@ -182,11 +184,11 @@ void aaasportsnba::deleteround(const account_name &issuer, const uint64_t id) {
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->round_id == id; ++betitr) {
     // delete bet one by one
-    _bets.erase(_bets.get(betitr->id));
+    _bets.erase(_bets.find(betitr->id));
   }
 
   // delete round
-  _rounds.erase(r);
+  _rounds.erase(_rounds.find(id));
 }
 /// ----------------------- end issuer section
 /// -----------------------------------
@@ -196,29 +198,26 @@ void aaasportsnba::deleteround(const account_name &issuer, const uint64_t id) {
 /// player bet
 void aaasportsnba::transfer(const account_name &sender,
                             const account_name &receiver) {
-  // print("\n>>> sender >>>", sender, " - name: ", name{sender});
-  // print("\n>>> receiver >>>", receiver, " - name: ", name{receiver});
-
+  logger_info(">>> sender >>>", sender, " - name: ", sender);
+  logger_info(">>> receiver >>>", receiver, " - name: ", receiver);
   auto transfer_data = unpack_action_data<transfer_args>();
   if (transfer_data.from == get_self() || transfer_data.to != get_self()) {
     return;
   }
 
-  // print("\n>>> transfer data quantity >>> ", transfer_data.quantity);
+  logger_info(">>> transfer data quantity >>> ", transfer_data.quantity);
 
-  // player
+  // // player
   const account_name player = transfer_data.from;
 
-  // memo
+  // // memo
   const string memo = transfer_data.memo;
-  vector<string> args = split(memo, '|');
-  eosio_assert(args.size() == 2, "only supported 2 args");
+  auto splitflag = memo.rfind("|");
 
-  // bet round
-  uint64_t round_id = stoull(args.at(0));
-
+  // round id
+  auto round_id = convert<uint64_t>(memo.substr(0, splitflag));
   // bet value
-  uint8_t bet_value = stoull(args.at(1));
+  auto bet_value = convert<int8_t>(memo.substr(splitflag + 1));
 
   // bet
   betround(player, round_id, bet_value, transfer_data.quantity);
@@ -227,6 +226,9 @@ void aaasportsnba::transfer(const account_name &sender,
 /// bet round
 void aaasportsnba::betround(const account_name &player, const uint64_t id,
                             const int8_t val, const asset &quant) {
+
+  logger_info("player: ", player, ", bet round: ", id, " with value: ", val,
+              " with quant: ", quant);
   // check player
   checkperm(player);
 
@@ -247,14 +249,15 @@ void aaasportsnba::betround(const account_name &player, const uint64_t id,
   uint64_t share = quant / r.bet_unit;
 
   // if player already bet round within the same val, put it together
-  auto playeridx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N("byround")>();
   bool alreadyBet = false;
-  for (auto playeritr = playeridx.lower_bound(id);
-       playeritr != playeridx.end() && playeritr->player == player &&
-       playeritr->round_id == id && playeritr->bet_val == val;
-       ++playeritr) {
+  for (auto betitr = betidx.lower_bound(id);
+       betitr != betidx.end() && betitr->player == player &&
+       betitr->round_id == id && betitr->bet_val == val;
+       ++betitr) {
     alreadyBet = true;
-    _bets.modify(_bets.get(playeritr->id), get_self(),
+    logger_info("user already bet");
+    _bets.modify(_bets.get(betitr->id), get_self(),
                  [&](auto &nb) { nb.share += share; });
     break;
   }
@@ -272,11 +275,11 @@ void aaasportsnba::betround(const account_name &player, const uint64_t id,
   }
 
   // update round
-  _rounds.modify(r, get_self(), [&](auto &nr) {
+  logger_info("update round");
+  _rounds.modify(_rounds.find(id), get_self(), [&](auto &nr) {
     nr.total += quant;
     nr.bet_count += 1;
     nr.shares += share;
-    ;
   });
 }
 /// ----------------------- end player section
@@ -295,32 +298,47 @@ void aaasportsnba::lotteryround(const uint64_t id) {
   // check status
   eosio_assert(r.status == pubing, "not at pubing status");
 
+  // check has winner
+  eosio_assert(r.shares_win > 0, "lottery round must has winner");
+
+  // check lottery begin time
+  uint64_t cur_time = current_time();
+  eosio_assert(cur_time >= r.lottery_begin_time,
+               "can not lottery before lottery_begin_time");
+
   // update round status
-  _rounds.modify(r, get_self(), [&](auto &nr) { nr.status = drawing; });
+  _rounds.modify(_rounds.find(id), get_self(),
+                 [&](auto &nr) { nr.status = drawing; });
 
   // forward award
   // get bet
-  auto playeridx = _bets.get_index<N("byround")>();
-  for (auto playeritr = playeridx.lower_bound(id);
-       playeritr != playeridx.end() && playeritr->round_id == id; ++playeritr) {
-    auto player = playeritr->player;
-    if (playeritr->status != win) {
+  auto betidx = _bets.get_index<N("byround")>();
+  for (auto betitr = betidx.lower_bound(id);
+       betitr != betidx.end() && betitr->round_id == id; ++betitr) {
+    auto player = betitr->player;
+    if (betitr->status != win) {
       continue;
     }
 
+    // inline action
+    // action act(permission_level(get_self(), cfg.tokenoutperm), get_self(),
+    //            N("forwardaward"), std::make_tuple(betitr->id));
+    // act.send();
+
     // deferred action
     transaction txn{};
-    const uint128_t sender_id = uint128_t(playeritr->id);
-    txn.actions.emplace_back(action(permission_level(get_self(), tokenoutp),
-                                    get_self(), N("forwardaward"),
-                                    std::make_tuple(playeritr->id)));
-    txn.delay_sec = 3;
+    const uint128_t sender_id = uint128_t(betitr->id);
+    txn.actions.emplace_back(
+        action(permission_level(get_self(), cfg.tokenoutperm), get_self(),
+               N("forwardaward"), std::make_tuple(betitr->id)));
+    txn.delay_sec = 0;
     txn.send(sender_id, get_self(), true);
   }
 }
 
 /// forward award
 void aaasportsnba::forwardaward(const uint64_t bet_id) {
+  logger_info("forward award ", bet_id);
   auto cfg = getconfig();
   checkperm(get_self(), cfg.tokenoutperm);
 
@@ -342,17 +360,16 @@ void aaasportsnba::forwardaward(const uint64_t bet_id) {
   checkasset(player_ret_asset);
 
   // transfer award
-  // string memo = "player " + to_string(_bet.player) + " round " +
-  //                    to_string(_bet.round_id) + " bet " + to_string(bet_id) +
-  //                    " award";
   string memo = "aaasportsnba bet award";
-  token_transfer(tokenoutp, get_self(), _bet.player, player_ret_asset, memo);
+  token_transfer(cfg.tokenoutperm, get_self(), _bet.player, player_ret_asset,
+                 memo);
 
   // change bet status
-  _bets.modify(_bet, get_self(), [&](auto &nb) { nb.status = returned; });
+  _bets.modify(_bets.find(bet_id), get_self(),
+               [&](auto &nb) { nb.status = returned; });
 
   // change round
-  _rounds.modify(r, get_self(), [&](auto &nr) {
+  _rounds.modify(_rounds.find(_bet.round_id), get_self(), [&](auto &nr) {
     nr.award_left -= 1;
     nr.token_left -= player_ret_asset;
   });
@@ -369,21 +386,35 @@ void aaasportsnba::cancelround(const uint64_t id) {
   // check status
   eosio_assert(r.status == pubing, "not at pubing status");
 
-  // update round status
-  _rounds.modify(r, get_self(), [&](auto &nr) { nr.status = aborted; });
+  // check has winner
+  eosio_assert(r.shares_win == 0, "cancel round must hasn't winner");
 
-  auto playeridx = _bets.get_index<N("byround")>();
-  for (auto playeritr = playeridx.lower_bound(id);
-       playeritr != playeridx.end() && playeritr->round_id == id; ++playeritr) {
-    auto player = playeritr->player;
+  // check lottery begin time
+  uint64_t cur_time = current_time();
+  eosio_assert(cur_time >= r.lottery_begin_time,
+               "can not cancel before lottery_begin_time");
+
+  // update round status
+  _rounds.modify(_rounds.find(id), get_self(),
+                 [&](auto &nr) { nr.status = aborted; });
+
+  auto betidx = _bets.get_index<N("byround")>();
+  for (auto betitr = betidx.lower_bound(id);
+       betitr != betidx.end() && betitr->round_id == id; ++betitr) {
+    auto player = betitr->player;
+
+    // inline action
+    // action act(permission_level(get_self(), cfg.tokenoutperm), get_self(),
+    //            N("returnbet"), std::make_tuple(betitr->id));
+    // act.send();
 
     // deferred action
     transaction txn{};
-    const uint128_t sender_id = uint128_t(playeritr->id);
-    txn.actions.emplace_back(action(permission_level(get_self(), tokenoutp),
-                                    get_self(), N("returnbet"),
-                                    std::make_tuple(playeritr->id)));
-    txn.delay_sec = 3;
+    const uint128_t sender_id = uint128_t(betitr->id);
+    txn.actions.emplace_back(
+        action(permission_level(get_self(), cfg.tokenoutperm), get_self(),
+               N("returnbet"), std::make_tuple(betitr->id)));
+    txn.delay_sec = 0;
     txn.send(sender_id, get_self(), true);
   }
 }
@@ -408,17 +439,16 @@ void aaasportsnba::returnbet(const uint64_t bet_id) {
   asset player_ret_asset = _bet.share * (r.bet_unit - r.fee_unit);
   checkasset(player_ret_asset);
 
-  // string memo = "player " + to_string(_bet.player) + " round " +
-  //               to_string(_bet.round_id) + " bet " + to_string(bet_id) +
-  //               " return";
   string memo = "aaasportsnba bet return";
-  token_transfer(tokenoutp, get_self(), _bet.player, player_ret_asset, memo);
+  token_transfer(cfg.tokenoutperm, get_self(), _bet.player, player_ret_asset,
+                 memo);
 
   // change bet status
-  _bets.modify(_bet, get_self(), [&](auto &nb) { nb.status = aborted; });
+  _bets.modify(_bets.find(bet_id), get_self(),
+               [&](auto &nb) { nb.status = aborted; });
 
   // change round
-  _rounds.modify(r, get_self(), [&](auto &nr) {
+  _rounds.modify(_rounds.find(_bet.round_id), get_self(), [&](auto &nr) {
     nr.return_left -= 1;
     nr.token_left -= player_ret_asset;
   });
@@ -450,12 +480,13 @@ void aaasportsnba::withdrawfee(const uint64_t id,
   }
 
   if (r.token_left.amount > 0) {
-    token_transfer(tokenoutp, get_self(), receiver, r.token_left,
+    token_transfer(cfg.tokenoutperm, get_self(), receiver, r.token_left,
                    "withdraw fee");
   }
 
   // change status
-  _rounds.modify(r, get_self(), [&](auto &nr) { nr.status = finished; });
+  _rounds.modify(_rounds.find(id), get_self(),
+                 [&](auto &nr) { nr.status = finished; });
 }
 /// ----------------------- end contract section
 
@@ -463,8 +494,8 @@ void aaasportsnba::withdrawfee(const uint64_t id,
 /// check nba result
 void aaasportsnba::checknbaresult(int8_t result, round_type type) {
   if (type == pdiff) {
-    auto absresult = abs(result);
-    eosio_assert(absresult <= 100 && absresult > 0,
+    eosio_assert(result != 0, "nba game point diff can not be zero");
+    eosio_assert(result <= 100 && result >= -100,
                  "point diff result must be (0, 100]");
   } else if (type == winorlose) {
     eosio_assert(result == 0 || result == 1, "only win(1) or lose(0) accept");
@@ -476,10 +507,9 @@ const configbase::config &aaasportsnba::getconfig() {
   return getconfigOrDefault(config{
     id : 0,
     issuerperm : nbaissuerp,
-    tokenoutperm : tokenoutp,
+    tokenoutperm : default_tokenoutp,
     game_duration : nba_duration,
     public_duration : default_public_duration,
-    fee_percent : default_bet_fee_percent,
   });
 }
 

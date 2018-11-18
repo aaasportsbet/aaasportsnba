@@ -8,8 +8,7 @@ using namespace std;
 using namespace aaasportslib;
 
 // aaasportsnba
-class aaasportsnba : public contract, public supervisorbase, public configbase
-{
+class aaasportsnba : public contract, public supervisorbase, public configbase {
 public:
   aaasportsnba(account_name n)
       : contract(n), supervisorbase(n), configbase(n), _rounds(n, n),
@@ -19,8 +18,7 @@ public:
    * @brief Information releated to a round
    * @abi table rounds i64
    */
-  struct round
-  {
+  struct round {
     uint64_t id;                 // unique id
     account_name issuer;         // issuer
     uint64_t bet_end_time;       // after this time, can not bet
@@ -29,11 +27,11 @@ public:
     uint64_t type;               // bet type
     uint64_t hometeam;           // home team
     uint64_t awayteam;           // away team
-    asset bet_unit;              // bet unit, all the bets can only be multiple of it
-    asset fee_unit;              // fee unit;
-    int8_t result;               // round result
-    uint64_t status;             // round status
-    uint64_t create_time;        // create time
+    asset bet_unit;       // bet unit, all the bets can only be multiple of it
+    asset fee_unit;       // fee unit;
+    int8_t result;        // round result
+    uint64_t status;      // round status
+    uint64_t create_time; // create time
 
     // round stat
     asset total;            // total bet
@@ -44,7 +42,7 @@ public:
     uint64_t award_left;
     uint64_t return_left;
     asset token_left; // how many asset left after award or cancel, if all is
-                      // done, left is round fee.
+    // done, left is round fee.
 
     uint64_t primary_key() const { return id; }
     uint64_t by_issuer() const { return issuer; }
@@ -80,8 +78,7 @@ public:
 
   /// bet table
   // @abi table bets i64
-  struct bet
-  {
+  struct bet {
     uint64_t id;
     uint64_t round_id;
     account_name player;
@@ -153,18 +150,15 @@ public:
 private:
   static const uint64_t nba_duration = 10800000000; // 3 * 60 * 60 * 1000 * 1000
   constexpr static const permission_name nbaissuerp = N("nbaissuer");
-  constexpr static const account_name activep = N("active");
 
   /// round type
-  enum round_type : uint64_t
-  {
+  enum round_type : uint64_t {
     pdiff, // points difference
     winorlose
   };
 
   /// round status
-  enum round_status : uint64_t
-  {
+  enum round_status : uint64_t {
     betting,
     waitpub,
     pubing,
@@ -174,18 +168,10 @@ private:
   };
 
   /// bet status
-  enum bet_status : uint64_t
-  {
-    wait,
-    win,
-    lose,
-    awarded,
-    returned
-  };
+  enum bet_status : uint64_t { wait, win, lose, awarded, returned };
 
   /// team identifier
-  enum team : uint64_t
-  {
+  enum team : uint64_t {
     SAS,
     MEM,
     DAL,

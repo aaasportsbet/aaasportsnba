@@ -17,10 +17,11 @@ def test():
     COMMENT('''
     Build and deploy eosio.token contract:
     ''')
-    create_account("eostoken", master)
+    create_account("eostoken", master, account_name="eosio.token")
     contracteos = Contract(eostoken, "02_eosio_token")
     contracteos.build(force=False)
     contracteos.deploy()
+    eostoken.info()
 
     COMMENT('''
     Create test accounts:
@@ -66,8 +67,11 @@ def test():
     ''')
     create_account("host", master)
     contract = Contract(host, CONTRACT_WORKSPACE)
-    contract.build(force=False)
+    contract.build(force=True)
     contract.deploy()
+    host.info()
+
+    duration = 5
 
     COMMENT('''
     Set test configs:
@@ -77,11 +81,12 @@ def test():
         {
             "issuerperm": "active",
             "tokenoutperm": "active",
-            "game_duration": 3600 * 1000 * 1000,
-            "public_duration": 3600 * 1000 * 1000,
+            "game_duration": duration * 1000 * 1000,
+            "public_duration": duration * 1000 * 1000,
             "fee_percent": 1
         }, host
     )
+    host.info()
 
     COMMENT('''
     Issue a new nba round:
@@ -90,19 +95,93 @@ def test():
         "createround",
         {
             "issuer": host,
-            "bet_end_time": int(round(time.time() * 1000 * 1000) + 2*60*1000*1000),
+            "bet_end_time": int(round(time.time() * 1000 * 1000) + duration*1000*1000),
             "roundtype": 0,
             "home": 1,
             "away": 2,
             "unit": "1.0000 EOS"
         },
         host)
+    host.info()
+
+    COMMENT('''
+    Bet round from a:
+    ''')
+    eostoken.push_action(
+        "transfer",
+        {
+            "from": a, "to": host,
+            "quantity": "25.0000 EOS", "memo": "0|6"
+        },
+        a)
+    host.info()
+
+    COMMENT('''
+    Bet round from b:
+    ''')
+    eostoken.push_action(
+        "transfer",
+        {
+            "from": b, "to": host,
+            "quantity": "10.0000 EOS", "memo": "0|-10"
+        },
+        b)
+    host.info()
+    time.sleep(duration)
+
+    COMMENT('''
+    Issuer stop bet:
+    ''')
+    host.push_action(
+        "stopbet",
+        {
+            "issuer": host,
+            "id": 0
+        },
+        host)
+    time.sleep(duration)
+
+    COMMENT('''
+    Issuer public round result:
+    ''')
+    host.push_action(
+        "publicround",
+        {
+            "issuer": host,
+            "id": 0,
+            "result": -10
+        },
+        host)
+    time.sleep(duration)
+
+    COMMENT('''
+    Lottery round:
+    ''')
+    host.push_action(
+        "lotteryround",
+        {
+            "id": 0
+        },
+        host)
+    time.sleep(duration)
+
+    COMMENT('''
+    Forward round bet for winner:
+    ''')
+    host.push_action(
+        "forwardaward",
+        {
+            "bet_id": 1
+        },
+        host)
+
+    eostoken.table("accounts", a)
+    eostoken.table("accounts", b)
+    eostoken.table("accounts", host)
 
     COMMENT('''
     Clean:
     ''')
-    contracteos.delete()
-    contract.delete()
     stop()
 
 
