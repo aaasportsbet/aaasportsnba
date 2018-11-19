@@ -82,8 +82,7 @@ def test():
             "issuerperm": "active",
             "tokenoutperm": "active",
             "game_duration": duration * 1000 * 1000,
-            "public_duration": duration * 1000 * 1000,
-            "fee_percent": 1
+            "public_duration": duration * 1000 * 1000
         }, host
     )
     host.info()
