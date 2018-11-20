@@ -86,6 +86,7 @@ def test():
         }, host
     )
     host.info()
+    host.table("config", host)
 
     COMMENT('''
     Issue a new nba round:

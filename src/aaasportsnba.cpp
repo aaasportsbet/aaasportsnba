@@ -125,7 +125,7 @@ void aaasportsnba::publicround(const account_name &issuer, const uint64_t id,
   uint64_t winner_bet = 0;
   uint64_t total_bet = 0;
 
-  auto betidx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N(byround)>();
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->round_id == id; ++betitr) {
     bool iswin = false;
@@ -180,7 +180,7 @@ void aaasportsnba::deleteround(const account_name &issuer, const uint64_t id) {
   eosio_assert(r.status == finished, "only finished round can delete");
 
   // delete bet
-  auto betidx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N(byround)>();
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->round_id == id; ++betitr) {
     // delete bet one by one
@@ -249,7 +249,7 @@ void aaasportsnba::betround(const account_name &player, const uint64_t id,
   uint64_t share = quant / r.bet_unit;
 
   // if player already bet round within the same val, put it together
-  auto betidx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N(byround)>();
   bool alreadyBet = false;
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->player == player &&
@@ -312,7 +312,7 @@ void aaasportsnba::lotteryround(const uint64_t id) {
 
   // forward award
   // get bet
-  auto betidx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N(byround)>();
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->round_id == id; ++betitr) {
     auto player = betitr->player;
@@ -322,7 +322,7 @@ void aaasportsnba::lotteryround(const uint64_t id) {
 
     // inline action
     // action act(permission_level(get_self(), cfg.tokenoutperm), get_self(),
-    //            N("forwardaward"), std::make_tuple(betitr->id));
+    //            N(forwardaward), std::make_tuple(betitr->id));
     // act.send();
 
     // deferred action
@@ -330,7 +330,7 @@ void aaasportsnba::lotteryround(const uint64_t id) {
     const uint128_t sender_id = uint128_t(betitr->id);
     txn.actions.emplace_back(
         action(permission_level(get_self(), cfg.tokenoutperm), get_self(),
-               N("forwardaward"), std::make_tuple(betitr->id)));
+               N(forwardaward), std::make_tuple(betitr->id)));
     txn.delay_sec = 0;
     txn.send(sender_id, get_self(), true);
   }
@@ -398,14 +398,14 @@ void aaasportsnba::cancelround(const uint64_t id) {
   _rounds.modify(_rounds.find(id), get_self(),
                  [&](auto &nr) { nr.status = aborted; });
 
-  auto betidx = _bets.get_index<N("byround")>();
+  auto betidx = _bets.get_index<N(byround)>();
   for (auto betitr = betidx.lower_bound(id);
        betitr != betidx.end() && betitr->round_id == id; ++betitr) {
     auto player = betitr->player;
 
     // inline action
     // action act(permission_level(get_self(), cfg.tokenoutperm), get_self(),
-    //            N("returnbet"), std::make_tuple(betitr->id));
+    //            N(returnbet), std::make_tuple(betitr->id));
     // act.send();
 
     // deferred action
@@ -413,7 +413,7 @@ void aaasportsnba::cancelround(const uint64_t id) {
     const uint128_t sender_id = uint128_t(betitr->id);
     txn.actions.emplace_back(
         action(permission_level(get_self(), cfg.tokenoutperm), get_self(),
-               N("returnbet"), std::make_tuple(betitr->id)));
+               N(returnbet), std::make_tuple(betitr->id)));
     txn.delay_sec = 0;
     txn.send(sender_id, get_self(), true);
   }
@@ -502,15 +502,45 @@ void aaasportsnba::checknbaresult(int8_t result, round_type type) {
   }
 }
 
+/// set config, should only be used in test
+void aaasportsnba::setconfig(const permission_name issuerperm,
+                             const permission_name tokenoutperm,
+                             const uint64_t game_duration,
+                             const uint64_t public_duration) {
+  checkperm(get_self());
+
+  // find config
+  auto cfg = _configs.find(0);
+
+  auto lambda = [&](auto &nc) {
+    nc.id = 0;
+    nc.issuerperm = issuerperm;
+    nc.tokenoutperm = tokenoutperm;
+    nc.game_duration = game_duration;
+    nc.public_duration = public_duration;
+  };
+  if (cfg == _configs.end()) {
+    _configs.emplace(get_self(), lambda);
+  } else {
+    _configs.modify(cfg, get_self(), lambda);
+  }
+}
+
 /// get config
-const configbase::config &aaasportsnba::getconfig() {
-  return getconfigOrDefault(config{
-    id : 0,
-    issuerperm : nbaissuerp,
-    tokenoutperm : default_tokenoutp,
-    game_duration : nba_duration,
-    public_duration : default_public_duration,
-  });
+const aaasportsnba::config &aaasportsnba::getconfig() {
+  // find config
+  auto cfg = _configs.find(0);
+  if (cfg == _configs.end()) {
+    return config{
+      id : 0,
+      issuerperm : nbaissuerp,
+      tokenoutperm : default_tokenoutp,
+      game_duration : nba_duration,
+      public_duration : default_public_duration,
+    };
+  }
+
+  return *cfg;
 }
 
 /// ----------------------- end utils section
@@ -523,6 +553,9 @@ EOSIO_ABI_EX(aaasportsnba,
 
              // player
              (transfer)
+
+             // supervisor
+             (challengebet)
 
              // contract
              (lotteryround)(forwardaward)(cancelround)(returnbet)(withdrawfee)(

@@ -1,4 +1,3 @@
-#include <aaasportslib/config.hpp>
 #include <aaasportslib/supervisor.hpp>
 #include <eosiolib/asset.hpp>
 #include <eosiolib/eosio.hpp>
@@ -8,17 +7,50 @@ using namespace std;
 using namespace aaasportslib;
 
 // aaasportsnba
-class aaasportsnba : public contract, public supervisorbase, public configbase {
+class aaasportsnba : public contract, public supervisorbase
+{
 public:
   aaasportsnba(account_name n)
-      : contract(n), supervisorbase(n), configbase(n), _rounds(n, n),
+      : contract(n), supervisorbase(n), _configs(n, n), _rounds(n, n),
         _bets(n, n) {}
+
+  // @abi table configs i64
+  struct config
+  {
+    uint64_t id;
+    // issuer permission
+    permission_name issuerperm = N(active);
+    // token out permission
+    permission_name tokenoutperm = N(active);
+    // how long a game can last, nba: 3hours, soccer: 2hours
+    uint64_t game_duration;
+    // how long a game result publish to
+    // the contract before lottery,
+    // default 2hours
+    uint64_t public_duration = 7200000000;
+
+    uint64_t primary_key() const { return id; }
+
+    EOSLIB_SERIALIZE(
+        config, (id)(issuerperm)(tokenoutperm)(game_duration)(public_duration))
+  };
+
+  typedef eosio::multi_index<N(configs), config> configs;
+  /// config
+  configs _configs;
+
+  /// set config, should only be used in test
+  /// @abi action
+  void setconfig(const permission_name issuerperm,
+                 const permission_name tokenoutperm,
+                 const uint64_t game_duration, const uint64_t public_duration);
 
   /**
    * @brief Information releated to a round
    * @abi table rounds i64
    */
-  struct round {
+  struct round
+  {
     uint64_t id;                 // unique id
     account_name issuer;         // issuer
     uint64_t bet_end_time;       // after this time, can not bet
@@ -27,11 +59,11 @@ public:
     uint64_t type;               // bet type
     uint64_t hometeam;           // home team
     uint64_t awayteam;           // away team
-    asset bet_unit;       // bet unit, all the bets can only be multiple of it
-    asset fee_unit;       // fee unit;
-    int8_t result;        // round result
-    uint64_t status;      // round status
-    uint64_t create_time; // create time
+    asset bet_unit;              // bet unit, all the bets can only be multiple of it
+    asset fee_unit;              // fee unit;
+    int8_t result;               // round result
+    uint64_t status;             // round status
+    uint64_t create_time;        // create time
 
     // round stat
     asset total;            // total bet
@@ -63,22 +95,23 @@ public:
   * current state
   */
   typedef eosio::multi_index<
-      N("round"), round,
-      indexed_by<N("byissuer"),
+      N(rounds), round,
+      indexed_by<N(byissuer),
                  const_mem_fun<round, uint64_t, &round::by_issuer>>,
-      indexed_by<N("bystatus"),
+      indexed_by<N(bystatus),
                  const_mem_fun<round, uint64_t, &round::by_status>>,
-      indexed_by<N("bytype"), const_mem_fun<round, uint64_t, &round::by_type>>,
-      indexed_by<N("byhome"),
+      indexed_by<N(bytype), const_mem_fun<round, uint64_t, &round::by_type>>,
+      indexed_by<N(byhome),
                  const_mem_fun<round, uint64_t, &round::by_hometeam>>,
-      indexed_by<N("byaway"),
+      indexed_by<N(byaway),
                  const_mem_fun<round, uint64_t, &round::by_awayteam>>>
       rounds;
   rounds _rounds;
 
   /// bet table
   // @abi table bets i64
-  struct bet {
+  struct bet
+  {
     uint64_t id;
     uint64_t round_id;
     account_name player;
@@ -93,9 +126,9 @@ public:
     EOSLIB_SERIALIZE(bet, (id)(round_id)(player)(bet_val)(share)(status))
   };
   typedef eosio::multi_index<
-      N("bet"), bet,
-      indexed_by<N("byround"), const_mem_fun<bet, uint64_t, &bet::by_round>>,
-      indexed_by<N("byplayer"), const_mem_fun<bet, uint64_t, &bet::by_round>>>
+      N(bets), bet,
+      indexed_by<N(byround), const_mem_fun<bet, uint64_t, &bet::by_round>>,
+      indexed_by<N(byplayer), const_mem_fun<bet, uint64_t, &bet::by_round>>>
       bets;
   bets _bets;
 
@@ -149,16 +182,18 @@ public:
 
 private:
   static const uint64_t nba_duration = 10800000000; // 3 * 60 * 60 * 1000 * 1000
-  constexpr static const permission_name nbaissuerp = N("nbaissuer");
+  constexpr static const permission_name nbaissuerp = N(nbaissuer);
 
   /// round type
-  enum round_type : uint64_t {
+  enum round_type : uint64_t
+  {
     pdiff, // points difference
     winorlose
   };
 
   /// round status
-  enum round_status : uint64_t {
+  enum round_status : uint64_t
+  {
     betting,
     waitpub,
     pubing,
@@ -168,10 +203,18 @@ private:
   };
 
   /// bet status
-  enum bet_status : uint64_t { wait, win, lose, awarded, returned };
+  enum bet_status : uint64_t
+  {
+    wait,
+    win,
+    lose,
+    awarded,
+    returned
+  };
 
   /// team identifier
-  enum team : uint64_t {
+  enum team : uint64_t
+  {
     SAS,
     MEM,
     DAL,
@@ -216,5 +259,5 @@ private:
                 const asset &quant);
 
   /// get config
-  const configbase::config &getconfig();
+  const config &getconfig();
 };

@@ -18,7 +18,11 @@
     "vector": "cpp",
     "optional": "cpp",
     "typeindex": "cpp",
-    "typeinfo": "cpp"
+    "typeinfo": "cpp",
+    "__functional_base_03": "cpp",
+    "__tuple": "cpp",
+    "limits": "cpp",
+    "type_traits": "cpp"
 },
 "C_Cpp.intelliSenseEngineFallback": "Enabled",
 "python.pythonPath": "/usr/local/bin/python3",

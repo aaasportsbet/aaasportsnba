@@ -30,5 +30,11 @@ cleos -u https://api-kylin.eosasia.one push action aaasportsnba setconfig '{"iss
 
 ### create a nba game
 ```
-cleos -u https://api-kylin.eosasia.one push action aaasportsnba createround '{"issuer": "aaasportsnba", "bet_end_time": 1542715200000000, "roundtype": 0, "home": 1, "away": 2,"unit": "1.0000 EOS"}' -p aaasportsnba
+cleos -u https://api-kylin.eosasia.one push action aaasportsnba createround '{"issuer": "aaasportsnba", "bet_end_time": 1552715200000000, "roundtype": 0, "home": 1, "away": 2,"unit": "1.0000 EOS"}' -p aaasportsnba
+```
+
+### get round table
+```
+cleos -u https://api-kylin.eosasia.one get table aaasportsnba aaasportsnba configs
+cleos -u https://api-kylin.eosasia.one get table aaasportsnba aaasportsnba rounds
 ```
