@@ -24,10 +24,29 @@ def test():
     eostoken.info()
 
     COMMENT('''
-    Create test accounts:
+    Build and deploy the contract:
     ''')
-    create_account("a", master)
-    create_account("b", master)
+    create_account("host", master)
+    contract = Contract(host, CONTRACT_WORKSPACE)
+    contract.build(force=True)
+    contract.deploy()
+
+    duration = 5
+    COMMENT('''
+    Set test configs:
+    ''')
+    host.push_action(
+        "setconfigs",
+        {
+            "frozen": 0,
+            "issuerperm": "active",
+            "tokenoutperm": "active",
+            "game_duration": duration,
+            "public_duration": duration,
+            "bet_fee_percent": 1
+        }, permission=(host, Permission.OWNER)
+    )
+    host.table("configs", host)
 
     COMMENT('''
     Create tokens:
@@ -42,51 +61,21 @@ def test():
             "can_whitelist": "0"
         }, [master, eostoken])
 
-    COMMENT('''
-    Transfer eos to a:
-    ''')
+    create_account("a", master)
+    create_account("b", master)
+    create_account("c", master)
+    create_account("d", master)
+    create_account("e", master)
     eostoken.push_action(
-        "issue",
-        {
-            "to": a, "quantity": "1000.0000 EOS", "memo": ""
-        },
-        master)
-
-    COMMENT('''
-    Transfer eos to b:
-    ''')
+        "issue", {"to": a, "quantity": "1000.0000 EOS", "memo": ""}, master)
     eostoken.push_action(
-        "issue",
-        {
-            "to": b, "quantity": "1000.0000 EOS", "memo": ""
-        },
-        master)
-
-    COMMENT('''
-    Build and deploy the contract:
-    ''')
-    create_account("host", master)
-    contract = Contract(host, CONTRACT_WORKSPACE)
-    contract.build(force=True)
-    contract.deploy()
-    host.info()
-
-    duration = 5
-
-    COMMENT('''
-    Set test configs:
-    ''')
-    host.push_action(
-        "setconfig",
-        {
-            "issuerperm": "active",
-            "tokenoutperm": "active",
-            "game_duration": duration * 1000 * 1000,
-            "public_duration": duration * 1000 * 1000
-        }, host
-    )
-    host.info()
-    host.table("config", host)
+        "issue", {"to": b, "quantity": "1000.0000 EOS", "memo": ""}, master)
+    eostoken.push_action(
+        "issue", {"to": c, "quantity": "1000.0000 EOS", "memo": ""}, master)
+    eostoken.push_action(
+        "issue", {"to": d, "quantity": "1000.0000 EOS", "memo": ""}, master)
+    eostoken.push_action(
+        "issue", {"to": e, "quantity": "1000.0000 EOS", "memo": ""}, master)
 
     COMMENT('''
     Issue a new nba round:
@@ -95,39 +84,30 @@ def test():
         "createround",
         {
             "issuer": host,
-            "bet_end_time": int(round(time.time() * 1000 * 1000) + duration*1000*1000),
+            "bet_end_time": int(round(time.time()) + duration),
             "roundtype": 0,
             "home": 1,
             "away": 2,
             "unit": "1.0000 EOS"
         },
         host)
-    host.info()
+    host.table("rounds", host)
 
-    COMMENT('''
-    Bet round from a:
-    ''')
-    eostoken.push_action(
-        "transfer",
-        {
-            "from": a, "to": host,
-            "quantity": "25.0000 EOS", "memo": "0|6"
-        },
-        a)
-    host.info()
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,10"}, a)
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,7"}, a)
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,-10"}, a)
 
-    COMMENT('''
-    Bet round from b:
-    ''')
-    eostoken.push_action(
-        "transfer",
-        {
-            "from": b, "to": host,
-            "quantity": "10.0000 EOS", "memo": "0|-10"
-        },
-        b)
-    host.info()
-    time.sleep(duration)
+    host.table("rounds", host)
+    time.sleep(duration-1)
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,10"}, a)
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,-10"}, a)
+    time.sleep(1)
+    host.table("rounds", host)
 
     COMMENT('''
     Issuer stop bet:
@@ -149,31 +129,25 @@ def test():
         {
             "issuer": host,
             "id": 0,
-            "result": -10
+            "homepoint": 90,
+            "awaypoint": 100
         },
         host)
     time.sleep(duration)
 
-    COMMENT('''
-    Lottery round:
-    ''')
-    host.push_action(
-        "lotteryround",
-        {
-            "id": 0
-        },
-        host)
-    time.sleep(duration)
+    # COMMENT('''
+    # Lottery round:
+    # ''')
+    # host.push_action(
+    #     "lotteryround",
+    #     {
+    #         "id": 0
+    #     },
+    #     host)
+    # time.sleep(duration)
 
-    COMMENT('''
-    Forward round bet for winner:
-    ''')
-    host.push_action(
-        "forwardaward",
-        {
-            "bet_id": 1
-        },
-        host)
+    host.table("rounds", host)
+    host.table("betstateoss", host)
 
     eostoken.table("accounts", a)
     eostoken.table("accounts", b)
