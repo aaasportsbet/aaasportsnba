@@ -27,7 +27,8 @@
     "atomic": "cpp",
     "__memory": "cpp",
     "initializer_list": "cpp",
-    "__mutex_base": "cpp"
+    "__mutex_base": "cpp",
+    "filesystem": "cpp"
 },
 "C_Cpp.intelliSenseEngineFallback": "Enabled",
 "python.pythonPath": "/usr/local/bin/python3",

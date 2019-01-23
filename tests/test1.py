@@ -23,12 +23,22 @@ def test():
     contracteos.deploy()
     eostoken.info()
 
+    create_account("aaasportsast", master, account_name="aaasportsast")
+    contractast = Contract(aaasportsast, "aaasportsast")
+    contractast.build(force=False)
+    contractast.deploy()
+    aaasportsast.info()
+
     COMMENT('''
     Build and deploy the contract:
     ''')
     create_account("host", master)
+    # host.set_account_permission(
+    #     Permission.ACTIVE, host, Permission.EOSIOCODE,
+    #     (host, Permission.OWNER))
+
     contract = Contract(host, CONTRACT_WORKSPACE)
-    contract.build(force=True)
+    contract.build(force=False)
     contract.deploy()
 
     duration = 5
@@ -46,11 +56,8 @@ def test():
             "bet_fee_percent": 1
         }, permission=(host, Permission.OWNER)
     )
-    host.table("configs", host)
+    host.table("config", host)
 
-    COMMENT('''
-    Create tokens:
-    ''')
     eostoken.push_action(
         "create",
         {
@@ -60,6 +67,13 @@ def test():
             "can_recall": "0",
             "can_whitelist": "0"
         }, [master, eostoken])
+
+    aaasportsast.push_action(
+        "create",
+        {
+            "issuer": master,
+            "maximum_supply": "10000000000.0000 AST"
+        }, [master, aaasportsast])
 
     create_account("a", master)
     create_account("b", master)
@@ -77,6 +91,9 @@ def test():
     eostoken.push_action(
         "issue", {"to": e, "quantity": "1000.0000 EOS", "memo": ""}, master)
 
+    aaasportsast.push_action(
+        "issue", {"to": host, "quantity": "100000.0000 AST", "memo": ""}, master)
+
     COMMENT('''
     Issue a new nba round:
     ''')
@@ -86,6 +103,17 @@ def test():
             "issuer": host,
             "bet_end_time": int(round(time.time()) + duration),
             "roundtype": 0,
+            "home": 1,
+            "away": 2,
+            "unit": "1.0000 EOS"
+        },
+        host)
+    host.push_action(
+        "createround",
+        {
+            "issuer": host,
+            "bet_end_time": int(round(time.time()) + duration),
+            "roundtype": 2,
             "home": 1,
             "away": 2,
             "unit": "1.0000 EOS"
@@ -106,19 +134,15 @@ def test():
                          "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,10"}, a)
     eostoken.push_action("transfer", {
                          "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|0,-10"}, a)
+
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|1,2"}, a)
+    eostoken.push_action("transfer", {
+                         "from": a, "to": host, "quantity": "1.0000 EOS", "memo": "bet|1,-5"}, a)
     time.sleep(1)
     host.table("rounds", host)
 
-    COMMENT('''
-    Issuer stop bet:
-    ''')
-    host.push_action(
-        "stopbet",
-        {
-            "issuer": host,
-            "id": 0
-        },
-        host)
+    # playing
     time.sleep(duration)
 
     COMMENT('''
@@ -135,9 +159,6 @@ def test():
         host)
     time.sleep(duration)
 
-    # COMMENT('''
-    # Lottery round:
-    # ''')
     # host.push_action(
     #     "lotteryround",
     #     {
@@ -147,11 +168,12 @@ def test():
     # time.sleep(duration)
 
     host.table("rounds", host)
-    host.table("betstateoss", host)
+    host.table("playerstats", host)
 
     eostoken.table("accounts", a)
     eostoken.table("accounts", b)
     eostoken.table("accounts", host)
+    aaasportsast.table("accounts", host)
 
     COMMENT('''
     Clean:
